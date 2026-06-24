@@ -5,20 +5,19 @@
 #                                                     +:+ +:+         +:+      #
 #    By: yzhang2 <yzhang2@student.42.fr>            +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
-#    Created: 2026/05/19 17:27:55 by yzhang2           #+#    #+#              #
-#    Updated: 2026/05/19 17:27:56 by yzhang2          ###   ########.fr        #
+#    Created: 2026/05/19 17:28:21 by yzhang2           #+#    #+#              #
+#    Updated: 2026/06/23 15:10:42 by yzhang2          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 
-
-NAME = RPN
+NAME = PmergeMe
 
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 RM = rm -f
 
-SRC = main.cpp RPN.cpp
+SRC = main.cpp PmergeMe.cpp
 OBJ = $(SRC:.cpp=.o)
 
 all: $(NAME)

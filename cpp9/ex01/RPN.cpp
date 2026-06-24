@@ -6,11 +6,9 @@
 /*   By: yzhang2 <yzhang2@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/05/19 17:28:02 by yzhang2           #+#    #+#             */
-/*   Updated: 2026/05/19 17:28:03 by yzhang2          ###   ########.fr       */
+/*   Updated: 2026/06/02 20:50:14 by yzhang2          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
-
-
 
 
 #include "RPN.hpp"
@@ -18,17 +16,6 @@
 #include <sstream>
 #include <stdexcept>
 
-static bool isNumberToken(std::string const &token)
-{
-    return token.size() == 1 && token[0] >= '0' && token[0] <= '9';
-}
-
-static bool isOperatorToken(std::string const &token)
-{
-    if (token.size() != 1)
-        return false;
-    return token[0] == '+' || token[0] == '-' || token[0] == '*' || token[0] == '/';
-}
 
 RPN::RPN(void)
 {
@@ -48,6 +35,18 @@ RPN &RPN::operator=(RPN const &other)
 
 RPN::~RPN(void)
 {
+}
+
+static bool isNumberToken(std::string const &token)
+{
+    return token.size() == 1 && token[0] >= '0' && token[0] <= '9';
+}
+
+static bool isOperatorToken(std::string const &token)
+{
+    if (token.size() != 1)
+        return false;
+    return token[0] == '+' || token[0] == '-' || token[0] == '*' || token[0] == '/';
 }
 
 void RPN::applyOperator(char op)

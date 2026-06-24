@@ -5,20 +5,19 @@
 #                                                     +:+ +:+         +:+      #
 #    By: yzhang2 <yzhang2@student.42.fr>            +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
-#    Created: 2026/05/19 17:28:21 by yzhang2           #+#    #+#              #
-#    Updated: 2026/05/19 17:28:22 by yzhang2          ###   ########.fr        #
+#    Created: 2026/05/19 17:27:40 by yzhang2           #+#    #+#              #
+#    Updated: 2026/06/01 18:56:25 by yzhang2          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 
-
-NAME = PmergeMe
+NAME = btc
 
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 RM = rm -f
 
-SRC = main.cpp PmergeMe.cpp
+SRC = main.cpp BitcoinExchange.cpp
 OBJ = $(SRC:.cpp=.o)
 
 all: $(NAME)

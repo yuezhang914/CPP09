@@ -6,10 +6,9 @@
 /*   By: yzhang2 <yzhang2@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/05/19 17:27:20 by yzhang2           #+#    #+#             */
-/*   Updated: 2026/05/19 17:27:21 by yzhang2          ###   ########.fr       */
+/*   Updated: 2026/06/01 18:58:06 by yzhang2          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
-
 
 
 #include "BitcoinExchange.hpp"
@@ -37,6 +36,20 @@ static int toInt(std::string const &text)
         i++;
     }
     return value;
+}
+
+static std::string trim(std::string const &text)
+{
+    std::size_t start;
+    std::size_t end;
+
+    start = 0;
+    while (start < text.size() && (text[start] == ' ' || text[start] == '\t' || text[start] == '\r' || text[start] == '\n'))
+        start++;
+    end = text.size();
+    while (end > start && (text[end - 1] == ' ' || text[end - 1] == '\t' || text[end - 1] == '\r' || text[end - 1] == '\n'))
+        end--;
+    return text.substr(start, end - start);
 }
 
 static bool isLeapYear(int year)
@@ -92,6 +105,7 @@ static bool parseNumber(std::string const &text, bool signAllowed, double &value
         i++;
     hasDigit = false;
     hasPoint = false;
+
     while (i < text.size())
     {
         if (isDigit(text[i]) == true)
@@ -113,15 +127,37 @@ static void readDatabaseLine(std::string const &line, std::map<std::string, doub
     std::string date;
     std::string number;
     double value;
+    std::size_t comma;
 
-    if (line.size() < 12 || line[10] != ',')
+    comma = line.find(',');
+    if (comma == std::string::npos || line.find(',', comma + 1) != std::string::npos)
         throw std::runtime_error("Error: invalid data file.");
-    date = line.substr(0, 10);
-    number = line.substr(11);
+    date = trim(line.substr(0, comma));
+    number = trim(line.substr(comma + 1));
     if (isValidDate(date) == false || parseNumber(number, false, value) == false)
         throw std::runtime_error("Error: invalid data file.");
     if (rates.insert(std::make_pair(date, value)).second == false)
         throw std::runtime_error("Error: invalid data file.");
+}
+
+void BitcoinExchange::loadDatabase(std::string const &file)
+{
+    std::ifstream input;
+    std::string line;
+
+    input.open(file.c_str());
+    if (input.is_open() == false)
+        throw std::runtime_error("Error: could not open data file.");
+    if (!std::getline(input, line) || trim(line) != "date,exchange_rate")
+        throw std::runtime_error("Error: invalid data file.");
+    while (std::getline(input, line))
+    {
+        if (trim(line).empty() == true)
+            continue;
+        readDatabaseLine(line, _rates);
+    }
+    if (_rates.empty() == true)
+        throw std::runtime_error("Error: empty data file.");
 }
 
 BitcoinExchange::BitcoinExchange(void)
@@ -145,33 +181,16 @@ BitcoinExchange::~BitcoinExchange(void)
 {
 }
 
-void BitcoinExchange::loadDatabase(std::string const &file)
-{
-    std::ifstream input;
-    std::string line;
-
-    input.open(file.c_str());
-    if (input.is_open() == false)
-        throw std::runtime_error("Error: could not open data file.");
-    if (std::getline(input, line) == false || line != "date,exchange_rate")
-        throw std::runtime_error("Error: invalid data file.");
-    while (std::getline(input, line))
-    {
-        if (line.empty() == false)
-            readDatabaseLine(line, _rates);
-    }
-    if (_rates.empty() == true)
-        throw std::runtime_error("Error: empty data file.");
-}
-
 static void parseInputLine(std::string const &line, std::string &date, double &value)
 {
     std::string number;
+    std::size_t pipe;
 
-    if (line.size() < 14 || line[10] != ' ' || line[11] != '|' || line[12] != ' ')
+    pipe = line.find('|');
+    if (pipe == std::string::npos || line.find('|', pipe + 1) != std::string::npos)
         throw std::runtime_error("Error: bad input => " + line);
-    date = line.substr(0, 10);
-    number = line.substr(13);
+    date = trim(line.substr(0, pipe));
+    number = trim(line.substr(pipe + 1));
     if (isValidDate(date) == false || parseNumber(number, true, value) == false)
         throw std::runtime_error("Error: bad input => " + line);
     if (value < 0)
@@ -203,11 +222,11 @@ void BitcoinExchange::convert(std::string const &file) const
     input.open(file.c_str());
     if (input.is_open() == false)
         throw std::runtime_error("Error: could not open file.");
-    if (std::getline(input, line) == false || line != "date | value")
+    if (!std::getline(input, line) || trim(line) != "date | value")
         throw std::runtime_error("Error: bad input file.");
     while (std::getline(input, line))
     {
-        if (line.empty() == true)
+        if (trim(line).empty() == true)
             continue;
         try
         {
