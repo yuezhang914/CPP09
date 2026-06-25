@@ -1,16 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   PmergeMe.cpp                                       :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: yzhang2 <yzhang2@student.42.fr>            +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/05/19 17:28:27 by yzhang2           #+#    #+#             */
-/*   Updated: 2026/06/23 15:10:45 by yzhang2          ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
-
 #include "PmergeMe.hpp"
 
 #include <cstdlib>
@@ -18,61 +5,92 @@
 #include <iostream>
 #include <sys/time.h>
 
-struct IntPair
-{
-    int high;
-    int low;
-};
-
-struct PendingValue
+struct SortItem
 {
     int value;
-    int high;
+    std::size_t id;
+};
+
+struct ItemPair
+{
+    SortItem high;
+    SortItem low;
+};
+
+struct PendingItem
+{
+    SortItem item;
+    std::size_t highId;
     bool hasHigh;
 };
 
-static std::size_t findVectorLimit(std::vector<int> const &chain, int high)
+static SortItem makeSortItem(int value, std::size_t id)
 {
-    std::size_t left;
-    std::size_t right;
-    std::size_t middle;
+    SortItem item;
 
-    left = 0;
-    right = chain.size();
-    while (left < right)
-    {
-        middle = left + (right - left) / 2;
-        if (chain[middle] < high)
-            left = middle + 1;
-        else
-            right = middle;
-    }
-    return left;
+    item.value = value;
+    item.id = id;
+    return item;
 }
 
-static void insertVectorValue(std::vector<int> &chain, PendingValue const &item)
+static std::size_t findVectorHighLimit(std::vector<SortItem> const &chain, std::size_t highId)
+{
+    std::size_t i;
+
+    i = 0;
+    while (i < chain.size())
+    {
+        if (chain[i].id == highId)
+            return i;
+        i++;
+    }
+    return chain.size();
+}
+
+static void insertVectorItem(std::vector<SortItem> &chain, PendingItem const &pending)
 {
     std::size_t left;
     std::size_t right;
     std::size_t middle;
 
     left = 0;
-    if (item.hasHigh == true)
-        right = findVectorLimit(chain, item.high);
+    if (pending.hasHigh == true)
+        right = findVectorHighLimit(chain, pending.highId);
     else
         right = chain.size();
     while (left < right)
     {
         middle = left + (right - left) / 2;
-        if (chain[middle] < item.value)
+        if (chain[middle].value < pending.item.value)
             left = middle + 1;
         else
             right = middle;
     }
-    chain.insert(chain.begin() + left, item.value);
+    chain.insert(chain.begin() + left, pending.item);
 }
 
-static void insertVectorPending(std::vector<int> &chain, std::vector<PendingValue> const &pending)
+static ItemPair takeVectorPair(std::vector<ItemPair> &pairs, std::size_t highId)
+{
+    std::size_t i;
+    ItemPair pair;
+
+    i = 0;
+    while (i < pairs.size())
+    {
+        if (pairs[i].high.id == highId)
+        {
+            pair = pairs[i];
+            pairs.erase(pairs.begin() + i);
+            return pair;
+        }
+        i++;
+    }
+    pair.high = makeSortItem(0, 0);
+    pair.low = makeSortItem(0, 0);
+    return pair;
+}
+
+static void insertVectorPending(std::vector<SortItem> &chain, std::vector<PendingItem> const &pending)
 {
     std::size_t previous;
     std::size_t current;
@@ -82,7 +100,7 @@ static void insertVectorPending(std::vector<int> &chain, std::vector<PendingValu
 
     if (pending.empty() == true)
         return;
-    insertVectorValue(chain, pending[0]);
+    insertVectorItem(chain, pending[0]);
     previous = 1;
     current = 3;
     while (previous < pending.size())
@@ -93,7 +111,7 @@ static void insertVectorPending(std::vector<int> &chain, std::vector<PendingValu
         index = end;
         while (index > previous)
         {
-            insertVectorValue(chain, pending[index - 1]);
+            insertVectorItem(chain, pending[index - 1]);
             index--;
         }
         next = current + previous * 2;
@@ -102,37 +120,39 @@ static void insertVectorPending(std::vector<int> &chain, std::vector<PendingValu
     }
 }
 
-static IntPair takeVectorPair(std::vector<IntPair> &pairs, int high)
+static void makeVectorPair(SortItem const &first, SortItem const &second, ItemPair &pair)
 {
-    std::size_t i;
-    IntPair pair;
-
-    i = 0;
-    while (i < pairs.size())
+    if (first.value < second.value)
     {
-        if (pairs[i].high == high)
-        {
-            pair = pairs[i];
-            pairs.erase(pairs.begin() + i);
-            return pair;
-        }
-        i++;
+        pair.high = second;
+        pair.low = first;
     }
-    pair.high = high;
-    pair.low = high;
-    return pair;
+    else
+    {
+        pair.high = first;
+        pair.low = second;
+    }
 }
 
-static std::vector<int> fordJohnsonVector(std::vector<int> values)
+static void pushVectorPending(std::vector<PendingItem> &pending, SortItem item, std::size_t highId, bool hasHigh)
 {
-    std::vector<IntPair> pairs;
-    std::vector<int> highs;
-    std::vector<PendingValue> pending;
-    std::vector<int> chain;
-    IntPair pair;
-    PendingValue item;
+    PendingItem pendingItem;
+
+    pendingItem.item = item;
+    pendingItem.highId = highId;
+    pendingItem.hasHigh = hasHigh;
+    pending.push_back(pendingItem);
+}
+
+static std::vector<SortItem> fordJohnsonVector(std::vector<SortItem> values)
+{
+    std::vector<ItemPair> pairs;
+    std::vector<SortItem> highs;
+    std::vector<PendingItem> pending;
+    std::vector<SortItem> chain;
+    ItemPair pair;
     bool hasStray;
-    int stray;
+    SortItem stray;
     std::size_t i;
 
     if (values.size() < 2)
@@ -141,16 +161,7 @@ static std::vector<int> fordJohnsonVector(std::vector<int> values)
     i = 0;
     while (i + 1 < values.size())
     {
-        if (values[i] < values[i + 1])
-        {
-            pair.high = values[i + 1];
-            pair.low = values[i];
-        }
-        else
-        {
-            pair.high = values[i];
-            pair.low = values[i + 1];
-        }
+        makeVectorPair(values[i], values[i + 1], pair);
         pairs.push_back(pair);
         highs.push_back(pair.high);
         i += 2;
@@ -164,50 +175,99 @@ static std::vector<int> fordJohnsonVector(std::vector<int> values)
     i = 0;
     while (i < chain.size())
     {
-        pair = takeVectorPair(pairs, chain[i]);
-        item.value = pair.low;
-        item.high = pair.high;
-        item.hasHigh = true;
-        pending.push_back(item);
+        pair = takeVectorPair(pairs, chain[i].id);
+        pushVectorPending(pending, pair.low, pair.high.id, true);
         i++;
     }
     if (hasStray == true)
-    {
-        item.value = stray;
-        item.high = 0;
-        item.hasHigh = false;
-        pending.push_back(item);
-    }
+        pushVectorPending(pending, stray, 0, false);
     insertVectorPending(chain, pending);
     return chain;
 }
 
-static void insertListValue(std::list<int> &chain, PendingValue const &item)
+static std::list<SortItem>::iterator findListHighLimit(std::list<SortItem> &chain, std::size_t highId)
 {
-    std::list<int>::iterator limit;
-    std::list<int>::iterator it;
+    std::list<SortItem>::iterator it;
 
-    limit = chain.end();
-    if (item.hasHigh == true)
-    {
-        limit = chain.begin();
-        while (limit != chain.end() && *limit < item.high)
-            limit++;
-    }
     it = chain.begin();
-    while (it != limit && *it < item.value)
+    while (it != chain.end())
+    {
+        if (it->id == highId)
+            return it;
         it++;
-    chain.insert(it, item.value);
+    }
+    return chain.end();
 }
 
-static PendingValue getListPending(std::list<PendingValue> const &values, std::size_t index)
+static std::size_t getListRangeSize(std::list<SortItem>::iterator first, std::list<SortItem>::iterator last)
 {
-    std::list<PendingValue>::const_iterator it;
+    std::size_t size;
+
+    size = 0;
+    while (first != last)
+    {
+        first++;
+        size++;
+    }
+    return size;
+}
+
+static std::list<SortItem>::iterator moveListIterator(std::list<SortItem>::iterator it, std::size_t steps)
+{
+    while (steps > 0)
+    {
+        it++;
+        steps--;
+    }
+    return it;
+}
+
+static std::list<SortItem>::iterator findListInsertPosition(std::list<SortItem> &chain, std::list<SortItem>::iterator limit, int value)
+{
+    std::list<SortItem>::iterator left;
+    std::list<SortItem>::iterator middle;
+    std::size_t count;
+    std::size_t step;
+
+    left = chain.begin();
+    count = getListRangeSize(left, limit);
+    while (count > 0)
+    {
+        step = count / 2;
+        middle = moveListIterator(left, step);
+        if (middle->value < value)
+        {
+            left = middle;
+            left++;
+            count = count - step - 1;
+        }
+        else
+            count = step;
+    }
+    return left;
+}
+
+static void insertListItem(std::list<SortItem> &chain, PendingItem const &pending)
+{
+    std::list<SortItem>::iterator limit;
+    std::list<SortItem>::iterator position;
+
+    if (pending.hasHigh == true)
+        limit = findListHighLimit(chain, pending.highId);
+    else
+        limit = chain.end();
+    position = findListInsertPosition(chain, limit, pending.item.value);
+    chain.insert(position, pending.item);
+}
+
+static PendingItem getListPending(std::list<PendingItem> const &pending, std::size_t index)
+{
+    std::list<PendingItem>::const_iterator it;
     std::size_t i;
 
-    it = values.begin();
+    it = pending.begin();
     i = 0;
-    while (i < index && it != values.end())
+    while (i < index && it != pending.end())
     {
         it++;
         i++;
@@ -215,7 +275,28 @@ static PendingValue getListPending(std::list<PendingValue> const &values, std::s
     return *it;
 }
 
-static void insertListPending(std::list<int> &chain, std::list<PendingValue> const &pending)
+static ItemPair takeListPair(std::list<ItemPair> &pairs, std::size_t highId)
+{
+    std::list<ItemPair>::iterator it;
+    ItemPair pair;
+
+    it = pairs.begin();
+    while (it != pairs.end())
+    {
+        if (it->high.id == highId)
+        {
+            pair = *it;
+            pairs.erase(it);
+            return pair;
+        }
+        it++;
+    }
+    pair.high = makeSortItem(0, 0);
+    pair.low = makeSortItem(0, 0);
+    return pair;
+}
+
+static void insertListPending(std::list<SortItem> &chain, std::list<PendingItem> const &pending)
 {
     std::size_t previous;
     std::size_t current;
@@ -225,7 +306,7 @@ static void insertListPending(std::list<int> &chain, std::list<PendingValue> con
 
     if (pending.empty() == true)
         return;
-    insertListValue(chain, getListPending(pending, 0));
+    insertListItem(chain, getListPending(pending, 0));
     previous = 1;
     current = 3;
     while (previous < pending.size())
@@ -236,7 +317,7 @@ static void insertListPending(std::list<int> &chain, std::list<PendingValue> con
         index = end;
         while (index > previous)
         {
-            insertListValue(chain, getListPending(pending, index - 1));
+            insertListItem(chain, getListPending(pending, index - 1));
             index--;
         }
         next = current + previous * 2;
@@ -245,40 +326,42 @@ static void insertListPending(std::list<int> &chain, std::list<PendingValue> con
     }
 }
 
-static IntPair takeListPair(std::list<IntPair> &pairs, int high)
+static void makeListPair(SortItem const &first, SortItem const &second, ItemPair &pair)
 {
-    std::list<IntPair>::iterator it;
-    IntPair pair;
-
-    it = pairs.begin();
-    while (it != pairs.end())
+    if (first.value < second.value)
     {
-        if (it->high == high)
-        {
-            pair = *it;
-            pairs.erase(it);
-            return pair;
-        }
-        it++;
+        pair.high = second;
+        pair.low = first;
     }
-    pair.high = high;
-    pair.low = high;
-    return pair;
+    else
+    {
+        pair.high = first;
+        pair.low = second;
+    }
 }
 
-static std::list<int> fordJohnsonList(std::list<int> values)
+static void pushListPending(std::list<PendingItem> &pending, SortItem item, std::size_t highId, bool hasHigh)
 {
-    std::list<IntPair> pairs;
-    std::list<int> highs;
-    std::list<PendingValue> pending;
-    std::list<int> chain;
-    std::list<int>::iterator it;
-    IntPair pair;
-    PendingValue item;
+    PendingItem pendingItem;
+
+    pendingItem.item = item;
+    pendingItem.highId = highId;
+    pendingItem.hasHigh = hasHigh;
+    pending.push_back(pendingItem);
+}
+
+static std::list<SortItem> fordJohnsonList(std::list<SortItem> values)
+{
+    std::list<ItemPair> pairs;
+    std::list<SortItem> highs;
+    std::list<PendingItem> pending;
+    std::list<SortItem> chain;
+    std::list<SortItem>::iterator it;
+    ItemPair pair;
     bool hasStray;
-    int first;
-    int second;
-    int stray;
+    SortItem first;
+    SortItem second;
+    SortItem stray;
 
     if (values.size() < 2)
         return values;
@@ -297,16 +380,7 @@ static std::list<int> fordJohnsonList(std::list<int> values)
         {
             second = *it;
             it++;
-            if (first < second)
-            {
-                pair.high = second;
-                pair.low = first;
-            }
-            else
-            {
-                pair.high = first;
-                pair.low = second;
-            }
+            makeListPair(first, second, pair);
             pairs.push_back(pair);
             highs.push_back(pair.high);
         }
@@ -315,20 +389,12 @@ static std::list<int> fordJohnsonList(std::list<int> values)
     it = chain.begin();
     while (it != chain.end())
     {
-        pair = takeListPair(pairs, *it);
-        item.value = pair.low;
-        item.high = pair.high;
-        item.hasHigh = true;
-        pending.push_back(item);
+        pair = takeListPair(pairs, it->id);
+        pushListPending(pending, pair.low, pair.high.id, true);
         it++;
     }
     if (hasStray == true)
-    {
-        item.value = stray;
-        item.high = 0;
-        item.hasHigh = false;
-        pending.push_back(item);
-    }
+        pushListPending(pending, stray, 0, false);
     insertListPending(chain, pending);
     return chain;
 }
@@ -401,6 +467,7 @@ PmergeMe::~PmergeMe(void)
 
 void PmergeMe::sortVector(char **values, int count)
 {
+    std::vector<SortItem> items;
     double start;
     int i;
 
@@ -409,15 +476,23 @@ void PmergeMe::sortVector(char **values, int count)
     i = 0;
     while (i < count)
     {
-        _vector.push_back(std::atoi(values[i]));
+        items.push_back(makeSortItem(std::atoi(values[i]), static_cast<std::size_t>(i + 1)));
         i++;
     }
-    _vector = fordJohnsonVector(_vector);
+    items = fordJohnsonVector(items);
+    i = 0;
+    while (i < static_cast<int>(items.size()))
+    {
+        _vector.push_back(items[static_cast<std::size_t>(i)].value);
+        i++;
+    }
     _vectorTime = getTimeInMicroseconds() - start;
 }
 
 void PmergeMe::sortList(char **values, int count)
 {
+    std::list<SortItem> items;
+    std::list<SortItem>::iterator it;
     double start;
     int i;
 
@@ -426,10 +501,16 @@ void PmergeMe::sortList(char **values, int count)
     i = 0;
     while (i < count)
     {
-        _list.push_back(std::atoi(values[i]));
+        items.push_back(makeSortItem(std::atoi(values[i]), static_cast<std::size_t>(i + 1)));
         i++;
     }
-    _list = fordJohnsonList(_list);
+    items = fordJohnsonList(items);
+    it = items.begin();
+    while (it != items.end())
+    {
+        _list.push_back(it->value);
+        it++;
+    }
     _listTime = getTimeInMicroseconds() - start;
 }
 
