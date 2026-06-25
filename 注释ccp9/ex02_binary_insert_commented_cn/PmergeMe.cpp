@@ -277,23 +277,89 @@ static std::list<SortItem>::iterator findListHighLimit(std::list<SortItem> &chai
 }
 
 /*
+函数用途：计算 list 中从 first 到 last 的半开区间长度。
+参数说明：first 是起始迭代器；last 是结束迭代器，不包含 last 本身。
+返回值：返回这个区间里有多少个节点。
+实现逻辑：因为 list 不能用下标相减，只能从 first 一步一步走到 last，并累计步数。
+*/
+static std::size_t getListRangeSize(std::list<SortItem>::iterator first, std::list<SortItem>::iterator last)
+{
+    std::size_t size;
+
+    size = 0;
+    while (first != last)
+    {
+        first++;
+        size++;
+    }
+    return size;
+}
+
+/*
+函数用途：把 list 迭代器向后移动指定步数。
+参数说明：it 是起始迭代器；steps 是要向后移动的节点数量。
+返回值：返回移动后的迭代器。
+实现逻辑：list 不能用 it + steps，所以只能用 while 一步一步后移。
+*/
+static std::list<SortItem>::iterator moveListIterator(std::list<SortItem>::iterator it, std::size_t steps)
+{
+    while (steps > 0)
+    {
+        it++;
+        steps--;
+    }
+    return it;
+}
+
+/*
+函数用途：在 list 的限定范围中，用二分插入思想找到 value 的插入位置。
+参数说明：chain 是当前有序 list 主链；limit 是右边界；value 是待插入数字。
+返回值：返回应该插入的位置迭代器。
+实现逻辑：先计算 [begin, limit) 的长度，每轮走到中点比较 value，然后缩小左右范围。
+注意事项：list 版本的二分可以减少比较次数，但找 middle 仍然需要迭代器一步步移动。
+*/
+static std::list<SortItem>::iterator findListInsertPosition(std::list<SortItem> &chain, std::list<SortItem>::iterator limit, int value)
+{
+    std::list<SortItem>::iterator left;
+    std::list<SortItem>::iterator middle;
+    std::size_t count;
+    std::size_t step;
+
+    left = chain.begin();
+    count = getListRangeSize(left, limit);
+    while (count > 0)
+    {
+        step = count / 2;
+        middle = moveListIterator(left, step);
+        if (middle->value < value)
+        {
+            left = middle;
+            left++;
+            count = count - step - 1;
+        }
+        else
+            count = step;
+    }
+    return left;
+}
+
+/*
 函数用途：把一个 PendingItem 插入到有序 list 主链中。
 参数说明：chain 是当前有序主链；pending 是待插入元素。
-实现逻辑：如果 pending 有 high，就先找到 highId 对应位置作为 limit；然后只在 begin 到 limit 范围中线性查找插入点。
+实现逻辑：如果 pending 有 high，就先找到 highId 对应位置作为 limit；然后在 begin 到 limit 范围中使用 iterator 版本二分插入。
+注意事项：这一版不再线性扫描 value 的插入位置，而是让 list 和 vector 都使用二分插入思想，区别只来自容器访问方式。
 */
 static void insertListItem(std::list<SortItem> &chain, PendingItem const &pending)
 {
     std::list<SortItem>::iterator limit;
-    std::list<SortItem>::iterator it;
+    std::list<SortItem>::iterator position;
 
     if (pending.hasHigh == true)
         limit = findListHighLimit(chain, pending.highId);
     else
         limit = chain.end();
-    it = chain.begin();
-    while (it != limit && it->value < pending.item.value)
-        it++;
-    chain.insert(it, pending.item);
+    position = findListInsertPosition(chain, limit, pending.item.value);
+    chain.insert(position, pending.item);
 }
 
 /*

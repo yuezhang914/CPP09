@@ -199,19 +199,65 @@ static std::list<SortItem>::iterator findListHighLimit(std::list<SortItem> &chai
     return chain.end();
 }
 
+static std::size_t getListRangeSize(std::list<SortItem>::iterator first, std::list<SortItem>::iterator last)
+{
+    std::size_t size;
+
+    size = 0;
+    while (first != last)
+    {
+        first++;
+        size++;
+    }
+    return size;
+}
+
+static std::list<SortItem>::iterator moveListIterator(std::list<SortItem>::iterator it, std::size_t steps)
+{
+    while (steps > 0)
+    {
+        it++;
+        steps--;
+    }
+    return it;
+}
+
+static std::list<SortItem>::iterator findListInsertPosition(std::list<SortItem> &chain, std::list<SortItem>::iterator limit, int value)
+{
+    std::list<SortItem>::iterator left;
+    std::list<SortItem>::iterator middle;
+    std::size_t count;
+    std::size_t step;
+
+    left = chain.begin();
+    count = getListRangeSize(left, limit);
+    while (count > 0)
+    {
+        step = count / 2;
+        middle = moveListIterator(left, step);
+        if (middle->value < value)
+        {
+            left = middle;
+            left++;
+            count = count - step - 1;
+        }
+        else
+            count = step;
+    }
+    return left;
+}
+
 static void insertListItem(std::list<SortItem> &chain, PendingItem const &pending)
 {
     std::list<SortItem>::iterator limit;
-    std::list<SortItem>::iterator it;
+    std::list<SortItem>::iterator position;
 
     if (pending.hasHigh == true)
         limit = findListHighLimit(chain, pending.highId);
     else
         limit = chain.end();
-    it = chain.begin();
-    while (it != limit && it->value < pending.item.value)
-        it++;
-    chain.insert(it, pending.item);
+    position = findListInsertPosition(chain, limit, pending.item.value);
+    chain.insert(position, pending.item);
 }
 
 static PendingItem getListPending(std::list<PendingItem> const &pending, std::size_t index)

@@ -187,9 +187,11 @@ This exercise is mainly about:
 - Understanding merge-insert sort
 - Implementing the Ford-Johnson algorithm idea
 - Pairing elements into larger and smaller values
-- Recursively sorting the main chain
+- Recursively sorting paired groups instead of treating values as unrelated integers
+- Preserving the relationship between each larger value and its matching smaller value
 - Inserting pending elements in a Jacobsthal-based order
-- Comparing `std::vector` and `std::list`
+- Using binary insertion for both `std::vector` and `std::list`
+- Comparing the behavior of two different container structures
 - Measuring processing time
 - Handling at least 3000 integers
 - Staying close to the subject's intended algorithm, not only producing a sorted result
@@ -236,16 +238,18 @@ std::list<int>
 
 They are useful for comparison because their internal behavior is very different.
 
-`std::vector` stores elements in contiguous memory. It allows fast index-based access, which makes binary insertion easier.
+`std::vector` stores elements in contiguous memory. It supports random access, so binary insertion can directly access the middle element by index.
 
-`std::list` stores elements as linked nodes. It does not support index access, so it must be traversed with iterators. However, once an insertion position is found, inserting a node is straightforward.
+`std::list` stores elements as linked nodes. It does not support random access, so binary insertion must be simulated with iterators by computing a range length and advancing to the middle position.
 
 This makes the comparison meaningful:
 
 ```text
-vector: fast access, possible element shifting during insertion
-list: slower traversal, easier node insertion once the position is found
+vector: binary insertion with fast random access
+list: binary insertion with iterator-based middle access
 ```
+
+Both containers follow the same algorithmic idea, but their internal structure affects the actual runtime.
 
 ## General Ford-Johnson Idea
 
@@ -253,16 +257,19 @@ The algorithm follows this general structure:
 
 1. Pair the input values.
 2. For each pair, identify the larger value and the smaller value.
-3. Recursively sort the larger values to form the main chain.
-4. Keep the smaller values as pending elements.
-5. Insert the pending elements into the main chain.
-6. Use a Jacobsthal-based order to reduce the worst-case number of insertion comparisons.
+3. Keep the larger value as the representative of the pair.
+4. Recursively sort the pairs or tracked items according to their larger values.
+5. Build the main chain from the sorted larger values.
+6. Keep the smaller values as pending elements.
+7. Insert the pending elements into the main chain.
+8. Use a Jacobsthal-based order to reduce the worst-case number of insertion comparisons.
+9. Use binary insertion to place each pending element into its valid search range.
 
-The key idea is not only to sort correctly, but also to control the insertion search range.
+The key idea is not only to sort correctly, but also to keep the pair relationship and control the insertion search range.
 
 ## Previous Implementation Logic
 
-My previous version followed this simpler structure:
+My earlier version followed this simpler structure:
 
 ```text
 Pair values into high and low
@@ -285,13 +292,20 @@ The main weakness was this step:
 After sorting high values, search back to find the matching low value.
 ```
 
-That means the high value and low value were temporarily separated, and the implementation later had to recover the relationship.
+That means the larger value and smaller value were temporarily separated, and the implementation later had to recover the relationship.
 
 This is easier to understand, but less faithful to the Ford-Johnson idea, where the relationship between paired values should be preserved through the recursive process.
 
+Another weakness was that the two containers did not originally express the insertion step in the same way. If `std::vector` uses binary insertion but `std::list` uses a simple linear scan, the comparison is less fair because the two containers are not following the same insertion strategy.
+
 ## Revised Subject-Closest Implementation Logic
 
-I revised the implementation to keep the pair relationship more explicit.
+I later revised `ex02` to be closer to the subject's intended algorithm.
+
+The revised implementation has two important changes:
+
+1. It keeps high-low relationships through tracked pair items instead of sorting plain high values and recovering lows afterward.
+2. It uses binary insertion for both `std::vector` and `std::list`.
 
 Each input value is wrapped in a `SortItem`:
 
@@ -307,7 +321,7 @@ The `value` is the actual number.
 
 The `id` is a unique identifier that keeps track of the original item, even when duplicate numbers exist.
 
-Pairs are stored as:
+Pairs are stored as complete high-low relationships:
 
 ```cpp
 struct ItemPair
@@ -317,7 +331,7 @@ struct ItemPair
 };
 ```
 
-Pending elements are stored as:
+Pending elements also keep their matching high boundary:
 
 ```cpp
 struct PendingItem
@@ -333,17 +347,95 @@ The revised algorithm works like this:
 ```text
 Wrap each input number as SortItem(value, id)
 Pair SortItems into high and low
-Recursively sort the high SortItems
-Use high.id to keep the high-low relationship reliable
-Build pending items with their highId boundary
+Keep each high-low pair relationship explicit
+Recursively sort the tracked high items while preserving their pair identity
+Build pending items from the lows attached to the sorted highs
+Use highId to limit each pending element's insertion range
 Insert pending items in Jacobsthal order
-Use highId to limit the search range before the matching high
+Use binary insertion to find the insertion position
 Extract the final integer values for output
 ```
 
-This is closer to the subject because the implementation no longer depends on plain integer values to recover pair relationships.
+This is closer to Ford-Johnson because the implementation no longer treats high values as isolated integers.
 
-The unique `id` also makes duplicate values safe. For example, two values can both be `9`, but they still have different IDs, so their matching lows are not confused.
+Instead, each value has an identity, and each pending low keeps a reliable connection to its matching high.
+
+This also makes duplicate values safe. Two values can both be `9`, but they still have different IDs, so their matching lows are not confused.
+
+## Direct Pair Sorting and Pair-Binding Idea
+
+The important change in the revised version is not only storing IDs. The deeper idea is that the algorithm should preserve pairs while recursion reorganizes the main chain.
+
+In the earlier version, the code did this:
+
+```text
+Sort high values first
+Then search back to find the matching low values
+```
+
+In the revised version, the logic is closer to:
+
+```text
+Compare by the high value
+Move the tracked item or pair relationship together
+Keep the low attached to its matching high through identity
+```
+
+So the algorithm is no longer based on plain value lookup.
+
+This matters because Ford-Johnson is about minimizing comparisons and preserving known relationships such as:
+
+```text
+low <= high
+```
+
+Once this relationship is created by the initial pair comparison, the implementation should keep it available for the insertion phase instead of separating the two values too much and reconstructing the relation later.
+
+## Binary Insertion in Both Containers
+
+Another revision was to make both containers use binary insertion.
+
+For `std::vector`, binary insertion is straightforward:
+
+```text
+left index
+right index
+middle index
+compare chain[middle]
+shrink the range
+insert at the final position
+```
+
+`std::vector` supports random access, so accessing the middle element is fast.
+
+For `std::list`, binary insertion needs an iterator-based version:
+
+```text
+left iterator
+right iterator
+range length
+move an iterator to the middle
+compare *middle
+shrink the range
+insert at the final iterator position
+```
+
+This does not make `std::list` random-access. It only makes the insertion logic follow the same binary-search comparison idea.
+
+The result is a fairer comparison:
+
+```text
+Both containers use Ford-Johnson pairing
+Both containers use Jacobsthal pending order
+Both containers use binary insertion
+The difference comes from the container itself
+```
+
+`std::vector` can reach the middle directly by index.
+
+`std::list` must move through iterators to reach the middle.
+
+So the comparison becomes a comparison of container behavior, not a comparison between two different insertion algorithms.
 
 ## Why I Changed the ex02 Implementation
 
@@ -351,7 +443,10 @@ I changed the implementation because the subject expects more than just a correc
 
 The goal of `ex02` is to practice merge-insert sort, so the structure of the algorithm matters.
 
-The earlier version was easier to read, but it separated `high` and `low` too much and then searched back by value.
+The earlier version was easier to read, but it had two limitations:
+
+- It separated `high` and `low`, then recovered the relationship later.
+- It did not make the two containers express the insertion phase in the same binary-insertion way.
 
 The revised version is better because:
 
@@ -359,13 +454,15 @@ The revised version is better because:
 - It avoids confusing duplicate values.
 - It uses unique IDs to track actual items instead of relying only on integer values.
 - It keeps the insertion boundary linked to the original paired high.
+- It uses Jacobsthal-based pending insertion.
+- It applies binary insertion to both `std::vector` and `std::list`.
 - It is closer to the Ford-Johnson / merge-insert sorting idea required by the subject.
 
 In short:
 
 ```text
 Previous version: sort high values, then recover low values.
-Revised version: sort tracked items and keep the high-low binding reliable.
+Revised version: preserve pair identity, insert pending values with high boundaries, and use binary insertion for both containers.
 ```
 
 The revised version is still written in C++98, does not use `std::sort`, and keeps separate vector and list implementations.
@@ -381,28 +478,8 @@ I also learned that when values can be duplicated, using only the value itself t
 This exercise also showed the practical difference between `std::vector` and `std::list`:
 
 - `std::vector` makes index-based access and binary insertion easier.
-- `std::list` requires iterator-based traversal and extra helper logic.
-
-## ex02 Test Result
-
-The subject-closest version was tested with a dedicated script covering:
-
-- Basic valid inputs
-- Single value input
-- Odd and even input counts
-- Already sorted input
-- Reverse sorted input
-- Duplicate values
-- Jacobsthal insertion boundary cases
-- Invalid input cases
-- 3000 reversed integers
-
-Result:
-
-```text
-PASS: 29
-FAIL: 0
-```
+- `std::list` can also follow binary insertion logic, but it must use iterators to move to the middle.
+- Using the same insertion strategy on both containers makes the timing comparison more meaningful.
 
 ---
 
@@ -457,9 +534,11 @@ Through this module, I practiced:
 - Error handling
 - Recursive algorithm design
 - Merge-insert sorting
+- Preserving pair relationships during recursion
 - Jacobsthal-based insertion order
+- Binary insertion in both random-access and iterator-based containers
 - Writing code that is not only correct, but also close to the subject's expected idea
 
 The most important lesson from this project is that STL containers are not interchangeable tools.
 
-A good implementation starts by understanding the problem, then choosing the data structure that matches the operations the problem really needs.
+A good implementation starts by understanding the problem, then choosing the data structure and algorithmic structure that match the operations the problem really needs.
